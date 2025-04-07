@@ -112,7 +112,7 @@ Desarrollar un sistema integral en Python y MySQL para gestionar el costeo de pl
 * **Tarea 7.2:** Configurar el agendador (Scheduler).
     * **Opción Cloud (Recomendada):** Google Cloud Scheduler para disparar un Cloud Run Job o Cloud Function.
     * **Opción Local/VM:** Cron (Linux) o Task Scheduler (Windows).
-* **Tarea 7.3:** Configurar monitoreo y alertas básicas para el job agendado.
+* **Tarea 7.3:** Configurar monitoreo y alertas básicas para el job agendado (Cloud Logging y Cloud Monitoring)
 * **Entregable:** Proceso automático y agendado para actualizaciones y snapshots.
 
 ### Fase 8: Despliegue en Google Cloud (GCP)
