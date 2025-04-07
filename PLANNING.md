@@ -20,6 +20,8 @@ Desarrollar un sistema integral en Python y MySQL para gestionar el costeo de pl
     * **Gestión de Secretos:** Secret Manager
     * **Contenerización:** Docker (Opcional pero recomendado para despliegue)
 * **Control de Versiones:** Git / GitHub (o similar)
+* **LLM:** Google Generative AI (Gemini)
+    * **Librería Python:** `google-generativeai`
 
 ## 3. Fases del Proyecto
 
@@ -74,39 +76,71 @@ Desarrollar un sistema integral en Python y MySQL para gestionar el costeo de pl
 * **Tarea 5.4:** Mejorar manejo de errores y feedback al usuario en la UI (`st.error`, `st.success`, `st.warning`, `st.spinner`).
 * **Entregable:** Aplicación Streamlit funcional y desplegable.
 
-### Fase 6: Automatización (Python + Cloud/OS)
+### Fase 6: Integración de Asistente LLM (Gemini)
 
-* **Tarea 6.1:** Preparar el script Python principal (`snapshot_job.py` o `main.py`) para ejecución desatendida (manejo de argumentos, configuración externa).
-* **Tarea 6.2:** Configurar el agendador (Scheduler).
+* **Tarea 6.1:** Configurar Acceso a API Gemini.
+    * Obtener API Key de Google AI Studio o Google Cloud.
+    * Añadir `google-generativeai` a `requirements.txt` e instalar.
+    * Implementar gestión segura de API Key (variables de entorno, `st.secrets`, Google Secret Manager para despliegue).
+* **Tarea 6.2:** Desarrollar Módulo `llm_integrator.py`.
+    * Función para inicializar el cliente de Gemini (`genai.configure`, `genai.GenerativeModel`).
+    * Función `format_data_for_llm(df)`: Selecciona y formatea datos clave del DataFrame de análisis (ej: top N campañas rentables, resúmenes por plataforma) en texto conciso para el contexto del prompt.
+    * Función `get_llm_response(prompt, context_data_string)`: Envía prompt + contexto a la API de Gemini y maneja la respuesta.
+    * Definir estructuras/diccionarios para consultas predefinidas y sus prompts asociados.
+    * Función `get_predefined_query_response(query_key, analysis_df)`: Obtiene prompt, formatea datos con `format_data_for_llm`, llama a `get_llm_response`.
+* **Tarea 6.3:** Modificar `app.py` para Persistencia y Sección Chat.
+    * Utilizar `st.session_state` para almacenar los resultados del análisis de campañas (ej: `st.session_state['campaign_results'] = filtered_df`) cuando se generan/filtran en la sección "Análisis de Campañas".
+    * Añadir opción "Chat con Asistente" a la navegación (`st.sidebar.radio`).
+    * Crear el bloque `elif option == "Chat con Asistente":`.
+    * Dentro del bloque:
+        * Verificar si `st.session_state['campaign_results']` existe; si no, mostrar mensaje para ejecutar análisis primero.
+        * Configurar cliente Gemini (con API key segura).
+        * Implementar interfaz de chat (historial en `st.session_state`, input de usuario con `st.text_input`).
+        * Añadir selectbox o botones para las consultas predefinidas.
+        * Lógica para manejar consultas predefinidas (llamando a `get_predefined_query_response`).
+        * Lógica para manejar consultas libres (formatear contexto, construir prompt, llamar a `get_llm_response`).
+* **Tarea 6.4:** Definir y Testear Prompts y Consultas.
+    * Redactar prompts efectivos para Gemini que incluyan el contexto formateado.
+    * Definir 3-5 consultas predefinidas útiles (ej: "¿Cuál es la campaña más rentable en general?", "¿Qué margen tiene el plato X en la campaña Y?", "¿Hay conflictos de exclusividad?").
+    * Probar la calidad y relevancia de las respuestas del LLM.
+* **Entregable:** Módulo `llm_integrator.py` funcional, sección de chat interactiva en Streamlit con consultas predefinidas y libres, usando resultados persistentes en la sesión.
+
+
+### Fase 7: Automatización y Scheduling (Python + Cloud/OS)
+
+* **Tarea 7.1:** Preparar el script Python principal (`snapshot_job.py` o `main.py`) para ejecución desatendida (manejo de argumentos, configuración externa).
+* **Tarea 7.2:** Configurar el agendador (Scheduler).
     * **Opción Cloud (Recomendada):** Google Cloud Scheduler para disparar un Cloud Run Job o Cloud Function.
     * **Opción Local/VM:** Cron (Linux) o Task Scheduler (Windows).
-* **Tarea 6.3:** Configurar monitoreo y alertas básicas para el job agendado.
+* **Tarea 7.3:** Configurar monitoreo y alertas básicas para el job agendado.
 * **Entregable:** Proceso automático y agendado para actualizaciones y snapshots.
 
-### Fase 7: Despliegue en Google Cloud (GCP)
+### Fase 8: Despliegue en Google Cloud (GCP)
 
-* **Tarea 7.1:** Configurar Instancia de Cloud SQL for MySQL.
+* **Tarea 8.1:** Configurar Instancia de Cloud SQL for MySQL.
     * Migrar esquema y datos.
     * Configurar acceso y seguridad.
-* **Tarea 7.2:** Desplegar el Job Backend (Python).
+* **Tarea 8.2:** Desplegar el Job Backend (Python).
     * Contenerizar el script (Dockerfile).
     * Subir imagen a Google Container Registry (GCR) o Artifact Registry.
     * Crear y configurar Cloud Run Job (o Cloud Function).
     * Configurar Cloud Scheduler para invocar el Job/Function.
     * Configurar Secret Manager para credenciales de BD.
-* **Tarea 7.3:** Desplegar la App Streamlit (Python).
+    * Configurar Secret Manager para API Key de Gemini además de credenciales BD.
+* **Tarea 8.3:** Desplegar la App Streamlit (Python).
     * Contenerizar la app Streamlit (Dockerfile).
     * Subir imagen a GCR/Artifact Registry.
     * Crear y configurar servicio de Cloud Run (o App Engine).
     * Configurar acceso público/privado según necesidad (IAM, IAP).
     * Configurar Secret Manager para credenciales de BD.
-* **Entregable:** Sistema completamente desplegado y funcional en GCP.
+    * Asegurar que la app desplegada pueda acceder a la API Key de Gemini (vía Secret Manager o variables de entorno configuradas en Cloud Run/App Engine).
+* **Entregable:** Sistema completamente desplegado y funcional en GCP, incluyendo la funcionalidad de chat con LLM.
 
-### Fase 8: Documentación y Entrega
+### Fase 9: Documentación y Entrega
 
-* **Tarea 8.1:** Completar/Actualizar `README.md` (instalación, configuración, uso, arquitectura).
-* **Tarea 8.2:** Documentar proceso de despliegue y mantenimiento.
-* **Tarea 8.3:** Limpieza de código, revisión final y entrega.
+* **Tarea 9.1:** Completar/Actualizar `README.md` (instalación, configuración, uso, arquitectura).
+* **Tarea 9.2:** Documentar proceso de despliegue y mantenimiento.
+* **Tarea 9.3:** Limpieza de código, revisión final y entrega.
 * **Entregable:** Proyecto documentado y entregado.
 
 ## 4. Consideraciones Clave
@@ -117,6 +151,10 @@ Desarrollar un sistema integral en Python y MySQL para gestionar el costeo de pl
 * **Rendimiento:** Indexar adecuadamente las tablas MySQL. Optimizar consultas en Vistas si es necesario. Usar caching (`@st.cache_data`, `@st.cache_resource`) en Streamlit.
 * **Manejo de Errores:** Implementar `try-except` y logging detallado en Python y procedimientos/funciones SQL si aplica.
 * **Testing:** Realizar pruebas unitarias (Python), pruebas de integración (Python-DB) y pruebas funcionales (Streamlit UI). Validar cálculos.
+* **Gestión API Key LLM:** Es crucial manejar la API Key de Gemini de forma segura, especialmente en el despliegue (NO hardcodearla).
+* **Calidad de Prompts:** La utilidad del LLM dependerá mucho de la calidad de los prompts y del contexto que se le proporcione (`format_data_for_llm`).
+* **Costos LLM:** Tener en cuenta los posibles costos asociados al uso de la API de Gemini.
+* **Persistencia de Sesión:** `st.session_state` mantiene los datos solo mientras dura la sesión del navegador del usuario. Si se cierra la pestaña, se pierde. Para persistencia mayor, se necesitaría guardar resultados en BD o archivos.
 
 ## 5. Mantenimiento y Próximos Pasos
 
@@ -124,3 +162,5 @@ Desarrollar un sistema integral en Python y MySQL para gestionar el costeo de pl
 * Backups periódicos de la base de datos (Cloud SQL ofrece esto).
 * Actualización de dependencias (Python, Streamlit, etc.).
 * Posibles mejoras futuras: Interfaz de usuario más avanzada, más tipos de análisis, integración con APIs de plataformas de delivery, etc.
+* Refinar prompts y consultas predefinidas del LLM basado en el uso.
+* Evaluar y optimizar costos de API LLM.

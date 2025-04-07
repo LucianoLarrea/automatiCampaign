@@ -1,7 +1,9 @@
 import mysql.connector
 from mysql.connector import Error
 import logging
+from dotenv import load_dotenv
 import os
+load_dotenv()
 
 # --- Configuración de Base de Datos (Leer desde variables de entorno o archivo config) ---
 DB_HOST = os.getenv('DB_HOST', 'localhost')
