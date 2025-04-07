@@ -1,7 +1,6 @@
 from mysql.connector import Error
 import pandas as pd
 import logging
-import os
 
 def update_insumo_prices(conn, file_path): # Eliminado valor por defecto
     if not file_path or not os.path.exists(file_path): # Verificar si existe
@@ -44,40 +43,27 @@ def update_insumo_prices(conn, file_path): # Eliminado valor por defecto
         if update_data:
             cursor.executemany(update_sql, update_data)
             conn.commit()
-            message = f"Actualizados precios para {cursor.rowcount} insumos."
-            logging.info(message)
-            cursor.close()
-            return True, message # <--- CORREGIDO
+            logging.info(f"Actualizados precios para {cursor.rowcount} insumos.")
         else:
-            message = "No hay datos de precios de insumos para actualizar."
-            logging.info(message)
-            if cursor: cursor.close() # Asegurar cierre si se abrió
-            return True, message # <--- CORREGIDO (Éxito, sin cambios)
+            logging.info("No hay datos de precios de insumos para actualizar.")
 
+        cursor.close()
+        return True
 
     except FileNotFoundError:
-        message = f"Archivo {file_path} no encontrado. Saltando actualización."
-        logging.warning(message)
-        return True, message # <--- CORREGIDO (Considerado éxito, tarea saltada)
-        # O podrías devolver False si es crítico: return False, message
+        logging.warning("Archivo nuevos_precios_insumos.csv no encontrado. Saltando actualización.")
+        return True
     except Error as e:
-        message = f"Error actualizando precios de insumos: {e}"
-        logging.error(message)
+        logging.error(f"Error actualizando precios de insumos: {e}")
         conn.rollback()
-        if cursor: cursor.close()
-        return False, message # <--- CORREGIDO
+        return False
     except Exception as ex:
-        message = f"Error inesperado en update_insumo_prices: {ex}"
-        logging.error(message, exc_info=True)
+        logging.error(f"Error inesperado en update_insumo_prices: {ex}")
         conn.rollback()
-        if cursor: cursor.close()
-        return False, message # <--- CORREGIDO
+        return False
 
 
-def update_competitor_prices(conn, file_path): # Eliminado valor por defecto
-    if not file_path or not os.path.exists(file_path): # Verificar si existe
-        logging.error(f"Archivo de precios de competencia no encontrado o no especificado: {file_path}")
-        return False, f"Archivo no encontrado: {file_path}"
+def update_competitor_prices(conn):
     """Actualiza precios de competencia (Ejemplo: desde un Excel)."""
     logging.info("Iniciando actualización de precios de competencia...")
     try:
@@ -95,30 +81,21 @@ def update_competitor_prices(conn, file_path): # Eliminado valor por defecto
         if update_data:
             cursor.executemany(update_sql, update_data)
             conn.commit()
-            message = f"Actualizados precios de competencia para {cursor.rowcount} platos."
-            logging.info(message)
-            cursor.close()
-            return True, message # <--- CORREGIDO
+            logging.info(f"Actualizados precios de competencia para {cursor.rowcount} platos.")
         else:
-            message = "No hay datos de precios de competencia para actualizar."
-            logging.info(message)
-            if cursor: cursor.close() # Asegurar cierre si se abrió
-            return True, message # <--- CORREGIDO (Éxito, sin cambios)
+            logging.info("No hay datos de precios de competencia para actualizar.")
+
+        cursor.close()
+        return True
 
     except FileNotFoundError:
-        message = f"Archivo {file_path} no encontrado. Saltando actualización."
-        logging.warning(message)
-        return True, message # <--- CORREGIDO (Considerado éxito, tarea saltada)
-        # O podrías devolver False si es crítico: return False, message
+        logging.warning("Archivo precios_competencia.xlsx no encontrado. Saltando actualización.")
+        return True
     except Error as e:
-        message = "Error actualizando precios de competencia: {e}"
-        logging.error(message)
+        logging.error(f"Error actualizando precios de competencia: {e}")
         conn.rollback()
-        if cursor: cursor.close()
-        return False, message # <--- CORREGIDO
+        return False
     except Exception as ex:
-        message = "Error inesperado en update_competitor_prices: {ex}"
-        logging.error(message)
+        logging.error(f"Error inesperado en update_competitor_prices: {ex}")
         conn.rollback()
-        if cursor: cursor.close()
-        return False, message # <--- CORREGIDO
+        return False

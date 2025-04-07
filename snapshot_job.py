@@ -1,249 +1,139 @@
-import mysql.connector
-from mysql.connector import Error
+# snapshot_job.py (Versión Modificada)
+from dotenv import load_dotenv
+load_dotenv() # Carga variables desde .env al entorno
+import argparse
 import datetime
-import pandas as pd # Ejemplo si cargas desde Excel/CSV
-# import requests # Ejemplo si cargas desde API
 import logging
-import os # Para leer variables de entorno (recomendado para credenciales)
+import os
+import db_connection
+import price_updaters
+import snapshot_creator
+import sys # Para salir si falla la conexión
 
 # --- Configuración de Logging ---
-logging.basicConfig(level=logging.INFO, filename='snapshot_job.log',
-                    format='%(asctime)s - %(levelname)s - %(message)s')
+log_file = 'snapshot_job.log'
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(log_file),
+        logging.StreamHandler() # También mostrar en consola
+    ]
+)
 
-# --- Configuración de Base de Datos (Leer desde variables de entorno o archivo config) ---
-DB_HOST = os.getenv('DB_HOST', 'localhost')
-DB_USER = os.getenv('DB_USER', 'root')
-DB_PASSWORD = os.getenv('DB_PASSWORD', 'password')
-DB_NAME = os.getenv('DB_NAME', 'atomick')
-
-def connect_db():
-    """Establece conexión con la base de datos."""
-    conn = None
-    try:
-        conn = mysql.connector.connect(
-            host=DB_HOST,
-            user=DB_USER,
-            password=DB_PASSWORD,
-            database=DB_NAME
-        )
-        logging.info("Conexión a MySQL establecida.")
-        return conn
-    except Error as e:
-        logging.error(f"Error conectando a MySQL: {e}")
-        return None
-
-def update_insumo_prices(conn):
-    """Actualiza precios de insumos (Ejemplo: desde un CSV)."""
-    logging.info("Iniciando actualización de precios de insumos...")
-    try:
-        # --- PASO 1: Leer nuevos precios (EJEMPLO desde CSV) ---
-        # Cambia esto según tu fuente de datos (CSV, Excel, API, etc.)
-        df_precios = pd.read_csv('4-Brief/Gemini/nuevos_precios_insumos.csv') # Asume columnas 'ID_Insumo', 'Nuevo_Costo_Compra', 'Nueva_Unidad_Compra'
-        cursor = conn.cursor()
-
-        update_sql = """
-            UPDATE INSUMOS
-            SET Costo_Compra = %s,
-                Unidad_Medida_Compra = %s, -- Opcional si cambia
-                Fecha_Ultima_Actualizacion_Costo = NOW()
-                -- AQUI DEBES RECALCULAR Costo_Por_Unidad_Uso o tener un Trigger/Función en la BD
-                -- Ejemplo simple si la unidad de uso es 'g' y compra es 'kg' o 'g':
-                , Costo_Por_Unidad_Uso = CASE
-                                            WHEN %s LIKE '%kg' THEN %s / 1000.0
-                                            WHEN %s LIKE 'g' THEN %s
-                                            ELSE NULL -- Manejar otros casos (Litros a ml, etc)
-                                        END
-            WHERE ID_Insumo = %s;
-        """
-        update_data = []
-        for index, row in df_precios.iterrows():
-             # Asegúrate de que las unidades y costos sean correctos para el cálculo de Costo_Por_Unidad_Uso
-            unidad_compra = row['Nueva_Unidad_Compra']
-            costo_compra = row['Nuevo_Costo_Compra']
-            update_data.append((
-                costo_compra,
-                unidad_compra,
-                unidad_compra, # Para el CASE
-                costo_compra,  # Para el CASE
-                unidad_compra, # Para el CASE
-                costo_compra,  # Para el CASE
-                row['ID_Insumo']
-            ))
-
-        if update_data:
-            cursor.executemany(update_sql, update_data)
-            conn.commit()
-            logging.info(f"Actualizados precios para {cursor.rowcount} insumos.")
-        else:
-            logging.info("No hay datos de precios de insumos para actualizar.")
-
-        cursor.close()
-        return True
-
-    except FileNotFoundError:
-        logging.warning("Archivo nuevos_precios_insumos.csv no encontrado. Saltando actualización.")
-        return True # O False si es un error crítico
-    except Error as e:
-        logging.error(f"Error actualizando precios de insumos: {e}")
-        conn.rollback() # Revertir cambios en caso de error
-        return False
-    except Exception as ex:
-        logging.error(f"Error inesperado en update_insumo_prices: {ex}")
-        conn.rollback()
-        return False
+# --- Leer Configuración Externa (Rutas desde Variables de Entorno) ---
+# Define rutas por defecto que pueden ser sobrescritas por Env Vars o Argparse
+DEFAULT_INSUMOS_CSV = os.getenv('INSUMOS_CSV_PATH', 'nuevos_precios_insumos.csv')
+DEFAULT_COMPETENCIA_XLSX = os.getenv('COMPETENCIA_FILE_PATH', 'precios_competencia.xlsx')
 
 
-def update_competitor_prices(conn):
-    """Actualiza precios de competencia (Ejemplo: desde un Excel)."""
-    logging.info("Iniciando actualización de precios de competencia...")
-    try:
-        # --- PASO 2: Leer nuevos precios (EJEMPLO desde Excel) ---
-        df_competencia = pd.read_excel('4-Brief/Gemini/precios_competencia.xlsx') # Asume columnas 'ID_Plato', 'Precio_Competencia_Nuevo'
-        cursor = conn.cursor()
-
-        update_sql = """
-            UPDATE PLATOS
-            SET Precio_Competencia = %s
-            WHERE ID_Plato = %s;
-        """
-        update_data = [(row['Precio_Competencia_Nuevo'], row['ID_Plato']) for index, row in df_competencia.iterrows()]
-
-        if update_data:
-            cursor.executemany(update_sql, update_data)
-            conn.commit()
-            logging.info(f"Actualizados precios de competencia para {cursor.rowcount} platos.")
-        else:
-            logging.info("No hay datos de precios de competencia para actualizar.")
-
-        cursor.close()
-        return True
-
-    except FileNotFoundError:
-        logging.warning("Archivo precios_competencia.xlsx no encontrado. Saltando actualización.")
-        return True # O False
-    except Error as e:
-        logging.error(f"Error actualizando precios de competencia: {e}")
-        conn.rollback()
-        return False
-    except Exception as ex:
-        logging.error(f"Error inesperado en update_competitor_prices: {ex}")
-        conn.rollback()
-        return False
-
-def create_financial_snapshot(conn):
-    """Consulta la vista V_PLATOS_FINANCIALS y guarda el snapshot en HISTORY."""
-    logging.info("Creando snapshot financiero...")
-    try:
-        cursor = conn.cursor(dictionary=True) # Devuelve filas como diccionarios
-
-        # --- PASO 3: Leer parámetros actuales usados por la vista ---
-        # (La vista ya los usa, pero es bueno guardarlos en el historial)
-        cursor.execute("SELECT market_discount, iva_rate, commission_rate FROM FINANCIAL_PARAMS WHERE param_id = 1;") # O tu lógica
-        params = cursor.fetchone()
-        if not params:
-            logging.error("No se encontraron parámetros financieros en FINANCIAL_PARAMS.")
-            return False
-
-        # --- PASO 4: Consultar la vista con los cálculos actuales ---
-        # Crear un nuevo cursor para la consulta SELECT
-        select_cursor = conn.cursor(dictionary=True)
-        # Asegúrate que tu VISTA incluya las columnas base necesarias (Costo_Plato, Precio_Competencia)
-        # Si no las incluye, modifica esta query para hacer JOINs o agregarlas a la VISTA
-        query_vista = """
-            SELECT
-                vpc.*, -- Selecciona todo de la vista
-                p.Precio_Competencia -- Asegura que el precio de competencia esté disponible
-            FROM
-                V_PLATOS_FINANCIALS vpc
-            JOIN
-                 PLATOS p ON vpc.ID_Plato = p.ID_Plato -- Une para obtener Precio_Competencia si no está en la vista
-            WHERE p.Precio_Competencia IS NOT NULL AND p.Precio_Competencia > 0; -- Aplica filtro si es necesario aqui tambien
-        """
-        select_cursor.execute(query_vista)
-        results = select_cursor.fetchall()
-        select_cursor.close()
-        logging.info(f"Se obtuvieron {len(results)} filas de V_PLATOS_FINANCIALS.")
-
-        if not results:
-            logging.warning("La vista V_PLATOS_FINANCIALS no devolvió resultados. No se creará snapshot.")
-            return True
-
-        # --- PASO 5: Insertar en la tabla de historial ---
-        snapshot_timestamp = datetime.datetime.now()
-        insert_sql = """
-            INSERT INTO PLATOS_FINANCIALS_HISTORY (
-                SnapshotTimestamp, ID_Plato,
-                Costo_Plato_Hist, Precio_Competencia_Hist,
-                Market_Discount_Used, IVA_Rate_Used, Commission_Rate_Used,
-                PBA_Hist, PNA_Hist, COGS_Partner_Actual_Hist,
-                Costo_Total_CT_Hist, Margen_Bruto_Actual_MBA_Hist,
-                Porcentaje_Margen_Bruto_PctMBA_Hist
-            ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
-            );
-        """
-        history_data = []
-        for row in results:
-            # Asegúrate que los nombres de columna coincidan con tu VISTA y tabla HISTORY
-            history_data.append((
-                snapshot_timestamp,
-                row['ID_Plato'],
-                row.get('Costo_Plato'), # Nombre de la columna en tu vista
-                row.get('Precio_Competencia'), # Nombre de la columna (puede venir del JOIN)
-                params['market_discount'],
-                params['iva_rate'],
-                params['commission_rate'],
-                row.get('PBA'),
-                row.get('PNA'),
-                row.get('COGS_Partner_Actual'),
-                row.get('Costo_Total_CT'),
-                row.get('Margen_Bruto_Actual_MBA'),
-                row.get('Porcentaje_Margen_Bruto_PctMBA')
-            ))
-
-        if history_data:
-            # Crear un nuevo cursor para la inserción
-            insert_cursor = conn.cursor()
-            insert_cursor.executemany(insert_sql, history_data)
-            conn.commit()
-            logging.info(f"Insertadas {insert_cursor.rowcount} filas en PLATOS_FINANCIALS_HISTORY.")
-            insert_cursor.close()
-        else:
-             logging.info("No hay datos procesados para insertar en el historial.")
-             
-        # Cerrar el cursor original
-        cursor.close()
-        return True
-
-    except Error as e:
-        logging.error(f"Error creando snapshot financiero: {e}")
-        conn.rollback()
-        return False
-    except Exception as ex:
-        logging.error(f"Error inesperado en create_financial_snapshot: {ex}")
-        conn.rollback()
-        return False
-
-# --- Flujo Principal del Script ---
-if __name__ == "__main__":
+def run_job(args):
+    """Función principal que ejecuta las tareas."""
     logging.info("===== Iniciando Job de Actualización y Snapshot =====")
-    connection = connect_db()
+    connection = None
 
-    if connection and connection.is_connected():
-        # Ejecutar actualizaciones primero
-        insumos_ok = update_insumo_prices(connection)
-        competencia_ok = update_competitor_prices(connection)
+    # Determinar rutas de archivo finales
+    insumos_file = args.insumos_file if args.insumos_file else DEFAULT_INSUMOS_CSV
+    competencia_file = args.competencia_file if args.competencia_file else DEFAULT_COMPETENCIA_XLSX
 
-        # Si las actualizaciones fueron bien (o si decides continuar aunque fallen)
-        if insumos_ok and competencia_ok: # O ajusta esta lógica
-             snapshot_ok = create_financial_snapshot(connection)
+    try:
+        connection = db_connection.connect_db()
+        if not (connection and connection.is_connected()):
+            logging.critical("FALLO CRÍTICO: No se pudo establecer conexión con la base de datos. Abortando.")
+            sys.exit(1) # Salir con código de error
+
+        # --- Ejecutar Pasos Solicitados ---
+        tasks_to_run = {
+            "insumos": args.run_all or args.update_insumos,
+            "competencia": args.run_all or args.update_competencia,
+            "snapshot": args.run_all or args.create_snapshot
+        }
+        results = {}
+
+        if tasks_to_run["insumos"]:
+            logging.info(f"--- Iniciando: Actualización precios insumos ({insumos_file}) ---")
+            success, msg = price_updaters.update_insumo_prices(connection, file_path=insumos_file)
+            results["insumos"] = {"success": success, "message": msg}
+            if success: logging.info(f"--- Finalizado: Actualización insumos - {msg} ---")
+            else: logging.error(f"--- FALLO: Actualización insumos - {msg} ---")
+
+        if tasks_to_run["competencia"]:
+            logging.info(f"--- Iniciando: Actualización precios competencia ({competencia_file}) ---")
+            success, msg = price_updaters.update_competitor_prices(connection, file_path=competencia_file)
+            results["competencia"] = {"success": success, "message": msg}
+            if success: logging.info(f"--- Finalizado: Actualización competencia - {msg} ---")
+            else: logging.error(f"--- FALLO: Actualización competencia - {msg} ---")
+
+        if tasks_to_run["snapshot"]:
+            logging.info("--- Iniciando: Creación de snapshot financiero ---")
+            success, msg = snapshot_creator.create_financial_snapshot(connection)
+            results["snapshot"] = {"success": success, "message": msg}
+            if success: logging.info(f"--- Finalizado: Creación snapshot - {msg} ---")
+            else: logging.error(f"--- FALLO: Creación snapshot - {msg} ---")
+
+        # --- Resumen Final ---
+        all_success = all(res["success"] for task, res in results.items() if tasks_to_run[task])
+        if all_success:
+            logging.info("Todas las tareas solicitadas se completaron exitosamente.")
         else:
-            logging.warning("Saltando snapshot debido a errores en la actualización de precios.")
+            logging.warning("Al menos una tarea falló. Revise los logs.")
 
-        # Cerrar conexión
-        connection.close()
-        logging.info("Conexión a MySQL cerrada.")
-    else:
-        logging.error("No se pudo establecer conexión con la base de datos. Abortando.")
+    except Exception as e:
+        logging.error(f"Error inesperado en la ejecución del job: {e}", exc_info=True)
+        # Asegurar que salga con error si hay excepción no manejada
+        sys.exit(1)
+    finally:
+        if connection and connection.is_connected():
+            connection.close()
+            logging.info("Conexión a MySQL cerrada.")
 
     logging.info("===== Job de Actualización y Snapshot Finalizado =====")
+
+    # Salir con código 0 si todo OK, 1 si algo falló (útil para schedulers)
+    sys.exit(0 if all_success else 1)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Actualiza precios de insumos/competencia y crea snapshots financieros.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter # Muestra defaults en ayuda
+    )
+
+    # Argumentos para rutas de archivo (sobrescriben Env Vars/Defaults)
+    parser.add_argument(
+        '--insumos-file',
+        type=str,
+        default=DEFAULT_INSUMOS_CSV,
+        help='Ruta al archivo CSV de precios de insumos.'
+    )
+    parser.add_argument(
+        '--competencia-file',
+        type=str,
+        default=DEFAULT_COMPETENCIA_XLSX,
+        help='Ruta al archivo Excel/CSV de precios de competencia.'
+    )
+
+    # Argumentos para controlar qué pasos ejecutar
+    parser.add_argument(
+        '--update-insumos',
+        action='store_true',
+        help='Ejecutar solo la actualización de precios de insumos.'
+    )
+    parser.add_argument(
+        '--update-competencia',
+        action='store_true',
+        help='Ejecutar solo la actualización de precios de competencia.'
+    )
+    parser.add_argument(
+        '--create-snapshot',
+        action='store_true',
+        help='Ejecutar solo la creación del snapshot.'
+    )
+
+    args = parser.parse_args()
+
+    # Determinar si ejecutar todos los pasos (si no se especifica uno concreto)
+    args.run_all = not (args.update_insumos or args.update_competencia or args.create_snapshot)
+
+    # Llamar a la función principal
+    run_job(args)
