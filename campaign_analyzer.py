@@ -1,5 +1,5 @@
 import pandas as pd
-from db_connection import connect_db # Asumiendo que tienes esta función en db_connection.py
+from .db_connection import connect_db # Asumiendo que tienes esta función en db_connection.py
 import logging
 
 def get_campaign_simulation_data(conn):
@@ -147,3 +147,68 @@ def generate_campaign_brief(selected_df, output_file='campaign_brief.csv'):
 #         generate_campaign_brief(final_selection_df)
 #
 #         connection.close()
+
+def format_data_for_llm(analysis_df: pd.DataFrame, top_n=5) -> str:
+    """
+    Crea un resumen de texto conciso del DataFrame de análisis de campañas
+    para usar como contexto en los prompts del LLM.
+
+    Args:
+        analysis_df: DataFrame con resultados de V_CAMPAIGN_SIMULATION
+                     (Debe incluir columnas relevantes como Pct_Margen_Bruto_Campaign,
+                      PlatformName, CampaignName, Nombre_Plato, ID_Plato,
+                      Precio_Bruto_Campaign, Margen_Bruto_Campaign, Exclusivity_Conflict).
+        top_n: Cuántas campañas top listar.
+
+    Returns:
+        Un string con el resumen formateado.
+    """
+    if analysis_df is None or analysis_df.empty:
+        return "No hay datos de análisis de campañas disponibles para formatear."
+
+    try:
+        # Limpieza y preparación de datos
+        df = analysis_df.copy()
+        df['Pct_Margen_Bruto_Campaign'] = pd.to_numeric(df['Pct_Margen_Bruto_Campaign'], errors='coerce')
+        df['Margen_Bruto_Campaign'] = pd.to_numeric(df['Margen_Bruto_Campaign'], errors='coerce')
+        # Eliminar filas con problemas numéricos solo para cálculos, no para el conteo total
+        df_calc = df.dropna(subset=['Pct_Margen_Bruto_Campaign', 'Margen_Bruto_Campaign']).copy()
+
+        total_options = len(df) # Contar sobre el original
+        profitable_options = df_calc[df_calc['Margen_Bruto_Campaign'] > 0]
+        num_profitable = len(profitable_options)
+        percent_profitable = (num_profitable / total_options * 100) if total_options > 0 else 0
+
+        # Construir el resumen
+        summary_lines = []
+        summary_lines.append(f"Resumen del Análisis de Campañas ({total_options} opciones simuladas):")
+        summary_lines.append(f"- {num_profitable} ({percent_profitable:.1f}%) opciones son rentables (Margen Bruto > $0).")
+
+        # Top N más rentables
+        if not profitable_options.empty:
+            top_profitable = profitable_options.nlargest(top_n, 'Pct_Margen_Bruto_Campaign')
+            summary_lines.append(f"\nTop {len(top_profitable)} Opciones Más Rentables (por % Margen Bruto):")
+            for _, row in top_profitable.iterrows():
+                 summary_lines.append(
+                    f"  - {row.get('Nombre_Plato','N/A')} ({row.get('ID_Plato','N/A')}) en '{row.get('CampaignName','N/A')}' ({row.get('PlatformName','N/A')}) "
+                    f"-> Precio: ${row.get('Precio_Bruto_Campaign',0):.2f}, Margen: {row.get('Pct_Margen_Bruto_Campaign',0):.1%}"
+                )
+
+        # Conflictos de Exclusividad (si la columna existe)
+        if 'Exclusivity_Conflict' in df.columns: # Usar el df original o df_calc aquí? Mejor df original
+            conflicts = df[df['Exclusivity_Conflict'] == True]
+            if not conflicts.empty:
+                conflicting_platos_names = sorted(conflicts['Nombre_Plato'].fillna('N/A').unique())
+                summary_lines.append(f"\nConflictos de Exclusividad Detectados:")
+                summary_lines.append(f"  - Platos afectados: {', '.join(conflicting_platos_names)}")
+            else:
+                 summary_lines.append("\n- No se detectaron conflictos de exclusividad.")
+        else:
+            summary_lines.append("\n- No se analizó la columna de conflictos de exclusividad.")
+
+
+        return "\n".join(summary_lines)
+
+    except Exception as e:
+        logging.error(f"Error al formatear datos para LLM: {e}", exc_info=True)
+        return "Error interno al procesar los datos del análisis."

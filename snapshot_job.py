@@ -5,9 +5,9 @@ import argparse
 import datetime
 import logging
 import os
-import db_connection
-import price_updaters
-import snapshot_creator
+from . import db_connection
+from . import price_updaters
+from . import snapshot_creator
 import sys # Para salir si falla la conexión
 
 # --- Configuración de Logging ---

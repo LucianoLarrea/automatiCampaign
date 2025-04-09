@@ -35,6 +35,7 @@ Desarrollar un sistema integral en Python y MySQL para gestionar el costeo de pl
     * `V_RECETAS_COSTOS`
     * `V_PLATOS_COSTOS`
 * **Tarea 1.3:** Carga inicial de datos (Insumos, Platos base, Parámetros iniciales, Campañas de ejemplo).
+* **Tarea 1.4:** Pruebas de validación de datos y cálculos de vistas SQL.
 * **Entregable:** Esquema SQL funcional con vistas de costeo y datos iniciales.
 
 ### Fase 2: Métricas Base y Simulación (SQL)
@@ -43,6 +44,7 @@ Desarrollar un sistema integral en Python y MySQL para gestionar el costeo de pl
     * Cálculo de PBA, PNA, Margen Base, etc., leyendo desde `V_PLATOS_COSTOS`, `PLATOS` y `FINANCIAL_PARAMS`.
 * **Tarea 2.2:** Creación/Validación de la Vista `V_CAMPAIGN_SIMULATION`.
     * Cálculo de precios y márgenes de campaña, uniendo `PLATOS`, `V_PLATOS_COSTOS`, `CAMPAIGNS` y `FINANCIAL_PARAMS`.
+* **Tarea 2.3:** Pruebas de validación de cálculos de vistas financieras y de simulación.
 * **Entregable:** Vistas SQL funcionales para métricas base y simulación de campañas.
 
 ### Fase 3: Backend - Actualizaciones y Snapshot (Python)
@@ -55,6 +57,7 @@ Desarrollar un sistema integral en Python y MySQL para gestionar el costeo de pl
     * Orquestar llamadas: `update_insumo_prices` -> `update_competitor_prices` -> `create_financial_snapshot`.
     * Implementar `create_financial_snapshot` para leer de `V_PLATOS_FINANCIALS` (o vistas/tablas base) y escribir en `PLATOS_FINANCIALS_HISTORY`.
 * **Tarea 3.4:** Implementar configuración centralizada (`config.py` o variables de entorno) y logging robusto.
+* **Tarea 3.5:** Pruebas unitarias (mocking DB/archivos) y de integración (con DB real/test) para `price_updaters`, `snapshot_creator` y `snapshot_job`.
 * **Entregable:** Scripts Python funcionales y testeados para actualizar precios y crear snapshots.
 
 ### Fase 4: Backend - Análisis de Campañas (Python)
@@ -63,6 +66,7 @@ Desarrollar un sistema integral en Python y MySQL para gestionar el costeo de pl
     * `get_campaign_simulation_data`: Función para leer de `V_CAMPAIGN_SIMULATION` (preferiblemente con SQLAlchemy) a un DataFrame.
     * `analyze_campaigns_simplified`: Función para añadir flag `Exclusivity_Conflict`.
     * `generate_campaign_brief`: Función para exportar selección a CSV.
+* **Tarea 4.2:** Pruebas unitarias para `campaign_analyzer` (mocking DB/DataFrame).
 * **Entregable:** Módulo Python funcional para obtener y preparar datos de simulación.
 
 ### Fase 5: Frontend - Interfaz Streamlit (Python)
@@ -74,6 +78,7 @@ Desarrollar un sistema integral en Python y MySQL para gestionar el costeo de pl
     * Filtros (expander/columnas), visualización de tabla (`st.dataframe`), selección (`st.multiselect`), generación y descarga de brief (`st.button`, `st.download_button`).
 * **Tarea 5.3:** Implementar/Mejorar visualizaciones en "Ver Historial" (Plotly).
 * **Tarea 5.4:** Mejorar manejo de errores y feedback al usuario en la UI (`st.error`, `st.success`, `st.warning`, `st.spinner`).
+* **Tarea 5.5:** Pruebas funcionales y de interacción UI para la app Streamlit.
 * **Entregable:** Aplicación Streamlit funcional y desplegable.
 
 ### Fase 6: Integración de Asistente LLM (Gemini)
@@ -103,34 +108,39 @@ Desarrollar un sistema integral en Python y MySQL para gestionar el costeo de pl
     * Redactar prompts efectivos para Gemini que incluyan el contexto formateado.
     * Definir 3-5 consultas predefinidas útiles (ej: "¿Cuál es la campaña más rentable en general?", "¿Qué margen tiene el plato X en la campaña Y?", "¿Hay conflictos de exclusividad?").
     * Probar la calidad y relevancia de las respuestas del LLM.
+* **Tarea 6.5:** Pruebas de integración con API LLM y validación de respuestas/flujo en Streamlit.
 * **Entregable:** Módulo `llm_integrator.py` funcional, sección de chat interactiva en Streamlit con consultas predefinidas y libres, usando resultados persistentes en la sesión.
 
 
 ### Fase 7: Automatización y Scheduling (Python + Cloud/OS)
 
 * **Tarea 7.1:** Preparar el script Python principal (`snapshot_job.py` o `main.py`) para ejecución desatendida (manejo de argumentos, configuración externa).
+Dockerizar el proyecto.
 * **Tarea 7.2:** Configurar el agendador (Scheduler).
     * **Opción Cloud (Recomendada):** Google Cloud Scheduler para disparar un Cloud Run Job o Cloud Function.
     * **Opción Local/VM:** Cron (Linux) o Task Scheduler (Windows).
 * **Tarea 7.3:** Configurar monitoreo y alertas básicas para el job agendado (Cloud Logging y Cloud Monitoring)
+* **Tarea 7.4:** Pruebas del job agendado (verificar ejecución, logs, resultados).
 * **Entregable:** Proceso automático y agendado para actualizaciones y snapshots.
 
 ### Fase 8: Despliegue en Google Cloud (GCP)
 
-* **Tarea 8.1:** Configurar Instancia de Cloud SQL for MySQL.
+* **Tarea 8.1:** Pruebas End-to-End Pre-Despliegue (simulando entorno de producción).
+* **Tarea 8.2:** Configurar Instancia de Cloud SQL for MySQL.
     * Migrar esquema y datos.
     * Configurar acceso y seguridad.
-* **Tarea 8.2:** Desplegar el Job Backend (Python).
+* **Tarea 8.3:** Desplegar el Job Backend (Python).
     * Contenerizar el script (Dockerfile).
     * Subir imagen a Google Container Registry (GCR) o Artifact Registry.
     * Crear y configurar Cloud Run Job (o Cloud Function).
     * Configurar Cloud Scheduler para invocar el Job/Function.
     * Configurar Secret Manager para credenciales de BD.
     * Configurar Secret Manager para API Key de Gemini además de credenciales BD.
-* **Tarea 8.3:** Desplegar la App Streamlit (Python).
+* **Tarea 8.4:** Desplegar la App Streamlit (Python).
     * Contenerizar la app Streamlit (Dockerfile).
     * Subir imagen a GCR/Artifact Registry.
     * Crear y configurar servicio de Cloud Run (o App Engine).
+* **Tarea 8.5:** Configurar acceso, seguridad y secretos en GCP.
     * Configurar acceso público/privado según necesidad (IAM, IAP).
     * Configurar Secret Manager para credenciales de BD.
     * Asegurar que la app desplegada pueda acceder a la API Key de Gemini (vía Secret Manager o variables de entorno configuradas en Cloud Run/App Engine).

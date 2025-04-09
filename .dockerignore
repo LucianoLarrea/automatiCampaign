@@ -1,0 +1,59 @@
+# .dockerignore
+
+# Python cache/compilados
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Entornos virtuales
+.venv/
+venv/
+env/
+
+# Distribución/Instalación Python
+*.egg-info/
+dist/
+build/
+wheels/
+pip-wheel-metadata/
+
+# Logs y BD locales
+*.log
+*.sqlite3
+
+# Configuración/Secretos locales
+.env
+*.env.*
+secrets/
+*.pem
+*.key
+config.py # Si contiene secretos y lees de env vars
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# IDE specific
+.idea/
+.vscode/
+*.sublime-*
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Archivos de datos (si decides NO copiarlos a la imagen)
+# Descomenta si montas volúmenes o los gestionas externamente
+# Gemini/*.csv
+# Gemini/*.xlsx
+
+# Otros
+*.pdf
+AgendarEjecucion.md
+db/

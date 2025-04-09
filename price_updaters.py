@@ -12,7 +12,7 @@ def update_insumo_prices(conn, file_path): # Eliminado valor por defecto
     try:
         # --- PASO 1: Leer nuevos precios (EJEMPLO desde CSV) ---
         # Cambia esto según tu fuente de datos (CSV, Excel, API, etc.)
-        df_precios = pd.read_csv('4-Brief/Gemini/nuevos_precios_insumos.csv')
+        df_precios = pd.read_csv(file_path)
         cursor = conn.cursor()
 
         update_sql = """
@@ -82,7 +82,7 @@ def update_competitor_prices(conn, file_path): # Eliminado valor por defecto
     logging.info("Iniciando actualización de precios de competencia...")
     try:
         # --- PASO 2: Leer nuevos precios (EJEMPLO desde Excel) ---
-        df_competencia = pd.read_excel('4-Brief/Gemini/precios_competencia.xlsx')
+        df_competencia = pd.read_excel(file_path)
         cursor = conn.cursor()
 
         update_sql = """

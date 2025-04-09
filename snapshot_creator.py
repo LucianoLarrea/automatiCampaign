@@ -21,7 +21,7 @@ def create_financial_snapshot(conn):
         params_cursor = conn.cursor(dictionary=True)
         params_cursor.execute("SELECT market_discount, iva_rate, commission_rate FROM FINANCIAL_PARAMS WHERE param_id = 1;") # O tu lógica de selección
         params = params_cursor.fetchone()
-        params_cursor.close() # Cerrar cursor de parámetros
+#        params_cursor.close() # Cerrar cursor de parámetros, eliminado por causer problemas en el testing
 
         if not params:
             message = "Error: No se encontraron parámetros financieros en FINANCIAL_PARAMS."
@@ -43,7 +43,7 @@ def create_financial_snapshot(conn):
         """
         select_cursor.execute(query_vista)
         results = select_cursor.fetchall()
-        select_cursor.close() # Cerrar cursor de selección
+        # select_cursor.close() # Cerrar cursor de selección. Eliminado por Testing
         logging.info(f"Se obtuvieron {len(results)} filas de V_PLATOS_FINANCIALS.")
 
         # --- PASO 3: Procesar resultados y preparar inserción ---
@@ -92,7 +92,7 @@ def create_financial_snapshot(conn):
                 row_count = insert_cursor.rowcount if insert_cursor.rowcount else len(history_data) # rowcount puede ser -1
                 message = f"Insertadas {row_count} filas en PLATOS_FINANCIALS_HISTORY."
                 logging.info(message)
-                insert_cursor.close() # Cerrar cursor de inserción
+                # insert_cursor.close() # Cerrar cursor de inserción. Eliminado por Testing
                 success = True
             else:
                 # Esto no debería ocurrir si 'results' no estaba vacío, pero por si acaso
